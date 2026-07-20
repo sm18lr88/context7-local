@@ -4,8 +4,8 @@
   "mcpName": "io.github.upstash/context7",
   "description": "MCP server for Context7",
   "scripts": {
-    "build": "tsc && chmod 755 dist/index.js",
-    "test": "pnpm exec vitest run",
+    "build": "tsc && node -e \"if (process.platform !== 'win32') require('fs').chmodSync('dist/index.js', 0o755)\"",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:check": "eslint .",
@@ -46,12 +46,13 @@
   "homepage": "https://github.com/upstash/context7#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@neuledge/context": "1.2.0",
     "@types/express": "^5.0.4",
     "@upstash/redis": "^1.38.0",
+    "better-sqlite3": "12.11.1",
     "commander": "^13.1.0",
-    "express": "^5.1.0",
+    "express": "^5.2.1",
     "jose": "^6.2.3",
-    "undici": "^6.26.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

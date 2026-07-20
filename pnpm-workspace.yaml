@@ -2,6 +2,18 @@ packages:
   - "packages/*"
 
 allowBuilds:
+  "@google/genai": false
+  better-sqlite3: true
   esbuild: true
+  protobufjs: false
 
 minimumReleaseAge: 10080
+
+overrides:
+  "@modelcontextprotocol/sdk>ajv": 8.18.0
+  "@modelcontextprotocol/sdk>hono": 4.12.25
+  ajv>fast-uri: 3.1.2
+  better-sqlite3: 12.11.1
+  body-parser: 2.2.1
+  path-to-regexp: 8.4.0
+  qs: 6.15.2

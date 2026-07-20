@@ -4,6 +4,47 @@
 
 # Context7 MCP - Up-to-date Code Docs For Any Prompt
 
+> [!IMPORTANT]
+> This checkout runs as a local-first Context7 fork. It does not call the hosted
+> Context7 API and has no API quota. On a cache miss it discovers a public GitHub
+> repository, shallow-clones the selected revision, builds a SQLite FTS5 index,
+> and waits until that index is ready before returning to the MCP client.
+
+## Local-first index
+
+On Windows, indexes are stored in `C:\Apps\System\Context7\index` by default.
+Each library has a SQLite database and a JSON manifest recording its repository,
+branch, exact commit SHA, parser version, index time, freshness-check time, and
+document counts. The MCP tools `local-index-status` and `refresh-local-index`
+make that state available programmatically.
+
+Indexes are checked for a new upstream commit every 24 hours by default. A changed
+commit is rebuilt and published atomically; an unchanged commit only advances the
+manifest's freshness-check timestamp. Concurrent requests for the same missing or
+stale library share one build.
+
+The local runtime accepts these environment variables:
+
+| Variable                       | Default                                    | Purpose                                              |
+| ------------------------------ | ------------------------------------------ | ---------------------------------------------------- |
+| `CONTEXT7_LOCAL_STORAGE_DIR`   | `C:\Apps\System\Context7\index` on Windows | Durable index directory                              |
+| `CONTEXT7_REFRESH_INTERVAL_MS` | `86400000`                                 | Remote commit check interval                         |
+| `CONTEXT7_GIT_TIMEOUT_MS`      | `120000`                                   | Git operation timeout                                |
+| `CONTEXT7_FETCH_TIMEOUT_MS`    | `15000`                                    | Package registry and GitHub metadata timeout         |
+| `CONTEXT7_MAX_FILES`           | `5000`                                     | Maximum documentation files per library              |
+| `CONTEXT7_MAX_FILE_BYTES`      | `2097152`                                  | Maximum bytes read from one documentation file       |
+| `CONTEXT7_MAX_INDEX_BYTES`     | `209715200`                                | Maximum source documentation bytes per build         |
+| `CONTEXT7_MAX_RESULT_CHARS`    | `16000`                                    | Maximum characters returned by a documentation query |
+| `GITHUB_TOKEN` / `GH_TOKEN`    | unset                                      | Optional GitHub metadata/search authentication       |
+
+Build and run this checkout with:
+
+```powershell
+corepack pnpm install --frozen-lockfile
+corepack pnpm --filter @upstash/context7-mcp build
+node packages/mcp/dist/index.js --transport stdio
+```
+
 [![Website](https://img.shields.io/badge/Website-context7.com-blue)](https://context7.com) [![smithery badge](https://smithery.ai/badge/@upstash/context7-mcp)](https://smithery.ai/server/@upstash/context7-mcp) [![NPM Version](https://img.shields.io/npm/v/%40upstash%2Fcontext7-mcp?color=red)](https://www.npmjs.com/package/@upstash/context7-mcp) [![MIT licensed](https://img.shields.io/npm/l/%40upstash%2Fcontext7-mcp)](./LICENSE)
 
 [![繁體中文](https://img.shields.io/badge/docs-繁體中文-yellow)](./i18n/README.zh-TW.md) [![简体中文](https://img.shields.io/badge/docs-简体中文-yellow)](./i18n/README.zh-CN.md) [![日本語](https://img.shields.io/badge/docs-日本語-b7003a)](./i18n/README.ja.md) [![한국어 문서](https://img.shields.io/badge/docs-한국어-green)](./i18n/README.ko.md) [![Documentación en Español](https://img.shields.io/badge/docs-Español-orange)](./i18n/README.es.md) [![Documentation en Français](https://img.shields.io/badge/docs-Français-blue)](./i18n/README.fr.md) [![Documentação em Português (Brasil)](<https://img.shields.io/badge/docs-Português%20(Brasil)-purple>)](./i18n/README.pt-BR.md) [![Documentazione in italiano](https://img.shields.io/badge/docs-Italian-red)](./i18n/README.it.md) [![Dokumentasi Bahasa Indonesia](https://img.shields.io/badge/docs-Bahasa%20Indonesia-pink)](./i18n/README.id-ID.md) [![Dokumentation auf Deutsch](https://img.shields.io/badge/docs-Deutsch-darkgreen)](./i18n/README.de.md) [![Документация на русском языке](https://img.shields.io/badge/docs-Русский-darkblue)](./i18n/README.ru.md) [![Українська документація](https://img.shields.io/badge/docs-Українська-lightblue)](./i18n/README.uk.md) [![Türkçe Doküman](https://img.shields.io/badge/docs-Türkçe-blue)](./i18n/README.tr.md) [![Arabic Documentation](https://img.shields.io/badge/docs-Arabic-white)](./i18n/README.ar.md) [![Tiếng Việt](https://img.shields.io/badge/docs-Tiếng%20Việt-red)](./i18n/README.vi.md)
