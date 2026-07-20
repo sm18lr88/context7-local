@@ -18,6 +18,22 @@ branch, exact commit SHA, parser version, index time, freshness-check time, and
 document counts. The MCP tools `local-index-status` and `refresh-local-index`
 make that state available programmatically.
 
+Retrieval is local and two-stage:
+
+- `search-docs` decomposes a task into lexical facets, fuses rankings, optionally
+  reranks the bounded candidate set with local Ollama embeddings, and returns
+  concise previews with commit-bound result keys.
+- `read-docs` expands one result with adjacent sections from the same document.
+- `grep-docs` performs bounded literal lookup for exact API names, options, and
+  error fragments.
+- `query-docs` remains compatible with existing Context7 clients and returns
+  answer-ready context directly.
+
+Repository files are treated as untrusted input. Agent-instruction files and
+repository-supplied rules are excluded from output, file reads are bounded before
+loading content, Git hooks/filters are disabled, and every source URL is pinned to
+the indexed commit.
+
 Indexes are checked for a new upstream commit every 24 hours by default. A changed
 commit is rebuilt and published atomically; an unchanged commit only advances the
 manifest's freshness-check timestamp. Concurrent requests for the same missing or
@@ -25,17 +41,41 @@ stale library share one build.
 
 The local runtime accepts these environment variables:
 
-| Variable                       | Default                                    | Purpose                                              |
-| ------------------------------ | ------------------------------------------ | ---------------------------------------------------- |
-| `CONTEXT7_LOCAL_STORAGE_DIR`   | `C:\Apps\System\Context7\index` on Windows | Durable index directory                              |
-| `CONTEXT7_REFRESH_INTERVAL_MS` | `86400000`                                 | Remote commit check interval                         |
-| `CONTEXT7_GIT_TIMEOUT_MS`      | `120000`                                   | Git operation timeout                                |
-| `CONTEXT7_FETCH_TIMEOUT_MS`    | `15000`                                    | Package registry and GitHub metadata timeout         |
-| `CONTEXT7_MAX_FILES`           | `5000`                                     | Maximum documentation files per library              |
-| `CONTEXT7_MAX_FILE_BYTES`      | `2097152`                                  | Maximum bytes read from one documentation file       |
-| `CONTEXT7_MAX_INDEX_BYTES`     | `209715200`                                | Maximum source documentation bytes per build         |
-| `CONTEXT7_MAX_RESULT_CHARS`    | `16000`                                    | Maximum characters returned by a documentation query |
-| `GITHUB_TOKEN` / `GH_TOKEN`    | unset                                      | Optional GitHub metadata/search authentication       |
+| Variable                        | Default                                    | Purpose                                              |
+| ------------------------------- | ------------------------------------------ | ---------------------------------------------------- |
+| `CONTEXT7_LOCAL_STORAGE_DIR`    | `C:\Apps\System\Context7\index` on Windows | Durable index directory                              |
+| `CONTEXT7_REFRESH_INTERVAL_MS`  | `86400000`                                 | Remote commit check interval                         |
+| `CONTEXT7_GIT_TIMEOUT_MS`       | `120000`                                   | Git operation timeout                                |
+| `CONTEXT7_FETCH_TIMEOUT_MS`     | `15000`                                    | Package registry and GitHub metadata timeout         |
+| `CONTEXT7_MAX_FILES`            | `5000`                                     | Maximum documentation files per library              |
+| `CONTEXT7_MAX_FILE_BYTES`       | `2097152`                                  | Maximum bytes read from one documentation file       |
+| `CONTEXT7_MAX_INDEX_BYTES`      | `209715200`                                | Maximum source documentation bytes per build         |
+| `CONTEXT7_MAX_RESULT_CHARS`     | `16000`                                    | Maximum characters returned by a documentation query |
+| `CONTEXT7_LOCAL_EMBEDDINGS`     | enabled                                    | Set to `off` to use fused lexical retrieval only     |
+| `CONTEXT7_EMBEDDING_MODEL`      | `qwen3-embedding:0.6b`                     | Local Ollama embedding model                         |
+| `CONTEXT7_EMBEDDING_BASE_URL`   | `http://127.0.0.1:11434`                   | Loopback-only Ollama endpoint                        |
+| `CONTEXT7_EMBEDDING_TIMEOUT_MS` | `45000`                                    | Local embedding request timeout                      |
+| `CONTEXT7_EMBEDDING_CANDIDATES` | `24`                                       | Maximum candidates reranked per query                |
+| `CONTEXT7_CORS_ORIGINS`         | unset                                      | Extra comma-separated HTTP origins                   |
+| `GITHUB_TOKEN` / `GH_TOKEN`     | unset                                      | Optional GitHub metadata/search authentication       |
+
+HTTP transport is restricted to loopback and binds to `127.0.0.1` by default.
+Use an authenticated reverse proxy or SSH tunnel when another machine must connect.
+
+Build the current top-1,000 catalog and run the persisted retrieval regression
+suite with:
+
+```powershell
+node packages/mcp/dist/prewarm.js --target 1000 --candidates 1600 --concurrency 2
+node packages/mcp/dist/migrate-index.js --concurrency 2
+node packages/mcp/dist/evaluate-retrieval.js
+```
+
+Prewarm progress and evaluation history are stored beneath the durable index
+directory, so upgrades can be compared programmatically.
+
+See [Local Architecture](LOCAL_ARCHITECTURE.md) for invariants, storage ownership,
+retrieval flow, security boundaries, and the design influences used by this fork.
 
 Build and run this checkout with:
 
@@ -1484,7 +1524,7 @@ bun run dist/index.js
 
 - `--transport <stdio|http>` – Transport to use (`stdio` by default). Use `http` for remote HTTP server or `stdio` for local integration.
 - `--port <number>` – Port to listen on when using `http` transport (default `3000`).
-- `--api-key <key>` – API key for authentication (or set `CONTEXT7_API_KEY` env var). You can get your API key by creating an account at [context7.com/dashboard](https://context7.com/dashboard).
+- `--host <host>` – Loopback HTTP bind host (`127.0.0.1` by default).
 
 Example with HTTP transport and port 8080:
 
@@ -1495,41 +1535,13 @@ bun run dist/index.js --transport http --port 8080
 Another example with stdio transport:
 
 ```bash
-bun run dist/index.js --transport stdio --api-key YOUR_API_KEY
+bun run dist/index.js --transport stdio
 ```
 
 ### Environment Variables
 
-You can use the `CONTEXT7_API_KEY` environment variable instead of passing the `--api-key` flag. This is useful for:
-
-- Storing API keys securely in `.env` files
-- Integration with MCP server setups that use dotenv
-- Tools that prefer environment variable configuration
-
-**Note:** The `--api-key` CLI flag takes precedence over the environment variable when both are provided.
-
-**Example with .env file:**
-
-```bash
-# .env
-CONTEXT7_API_KEY=your_api_key_here
-```
-
-**Example MCP configuration using environment variable:**
-
-```json
-{
-  "mcpServers": {
-    "context7": {
-      "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp"],
-      "env": {
-        "CONTEXT7_API_KEY": "YOUR_API_KEY"
-      }
-    }
-  }
-}
-```
+This local fork has no Context7 API key or hosted authentication path. Use the
+local index variables in [Local-first index](#local-first-index).
 
 <details>
 <summary><b>Local Configuration Example</b></summary>

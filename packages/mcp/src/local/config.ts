@@ -29,6 +29,13 @@ export function loadLocalContext7Config(): LocalContext7Config {
     maxFileBytes: positiveInteger("CONTEXT7_MAX_FILE_BYTES", 2 * 1024 * 1024),
     maxIndexBytes: positiveInteger("CONTEXT7_MAX_INDEX_BYTES", 200 * 1024 * 1024),
     maxResultChars: positiveInteger("CONTEXT7_MAX_RESULT_CHARS", 16_000),
+    embeddingModel:
+      process.env.CONTEXT7_LOCAL_EMBEDDINGS === "off"
+        ? undefined
+        : process.env.CONTEXT7_EMBEDDING_MODEL || "qwen3-embedding:0.6b",
+    embeddingBaseUrl: process.env.CONTEXT7_EMBEDDING_BASE_URL || "http://127.0.0.1:11434",
+    embeddingTimeoutMs: positiveInteger("CONTEXT7_EMBEDDING_TIMEOUT_MS", 45_000),
+    embeddingCandidates: positiveInteger("CONTEXT7_EMBEDDING_CANDIDATES", 24),
     githubToken: process.env.GITHUB_TOKEN || process.env.GH_TOKEN,
   };
 }

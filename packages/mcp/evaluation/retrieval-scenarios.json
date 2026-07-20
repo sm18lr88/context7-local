@@ -1,0 +1,47 @@
+[
+  {
+    "libraryId": "/axios/axios",
+    "query": "cancel request AbortController",
+    "relevantPath": "docs/pages/advanced/cancellation.md"
+  },
+  {
+    "libraryId": "/astral-sh/uv",
+    "query": "create virtual environment python version",
+    "relevantPath": "docs/pip/environments.md"
+  },
+  {
+    "libraryId": "/colinhacks/zod",
+    "query": "custom validation refine error message",
+    "relevantPath": "packages/docs/content/error-customization.mdx"
+  },
+  {
+    "libraryId": "/apollographql/apollo-client",
+    "query": "configure normalized cache type policies",
+    "relevantPath": "docs/source/caching/cache-configuration.mdx"
+  },
+  {
+    "libraryId": "/angular/angular",
+    "query": "signals computed effect",
+    "relevantPath": "adev/src/content/guide/signals"
+  },
+  {
+    "libraryId": "/aio-libs/aiohttp",
+    "query": "client session timeout",
+    "relevantPath": "docs/client_quickstart.rst"
+  },
+  {
+    "libraryId": "/ant-design/ant-design",
+    "query": "form validation rules English documentation",
+    "relevantPath": "components/form/index.en-US.md"
+  },
+  {
+    "libraryId": "/aws/aws-sdk-js-v3",
+    "query": "lib-storage Upload multipart large file progress concurrency",
+    "relevantPath": "lib/lib-storage/README.md"
+  },
+  {
+    "libraryId": "/bigskysoftware/htmx",
+    "query": "server sent events extension",
+    "relevantPath": "www/content/extensions/sse.md"
+  }
+]

@@ -7,6 +7,10 @@ export interface LocalContext7Config {
   maxFileBytes: number;
   maxIndexBytes: number;
   maxResultChars: number;
+  embeddingModel?: string;
+  embeddingBaseUrl?: string;
+  embeddingTimeoutMs?: number;
+  embeddingCandidates?: number;
   githubToken?: string;
 }
 
@@ -54,6 +58,14 @@ export interface LibraryManifest {
   rules: string[];
   versions: string[];
   stars?: number;
+  selection?: {
+    candidateFiles: number;
+    selectedFiles: number;
+    excludedNoiseFiles: number;
+    duplicateFiles: number;
+    oversizedFiles: number;
+    budgetSkippedFiles: number;
+  };
 }
 
 export interface EnsureIndexResult {

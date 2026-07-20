@@ -11,8 +11,7 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { z } from "zod";
 import { searchLibraries, fetchLibraryContext } from "./lib/api.js";
 import type { ClientContext } from "./lib/types.js";
-import { formatSearchResults, extractClientInfoFromUserAgent } from "./lib/utils.js";
-import { isJWT, validateJWT } from "./lib/jwt.js";
+import { formatSearchResults } from "./lib/utils.js";
 import express from "express";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
@@ -20,14 +19,7 @@ import { Command } from "commander";
 import { AsyncLocalStorage } from "async_hooks";
 import { randomUUID } from "node:crypto";
 import { createSessionStore } from "./lib/sessionStore.js";
-import {
-  SERVER_VERSION,
-  RESOURCE_URL,
-  AUTH_SERVER_URL,
-  OPENAI_APPS_CHALLENGE_TOKEN,
-} from "./lib/constants.js";
-import { maybeElicitAuthSignIn } from "./lib/auth/auth-prompt.js";
-import { getClientIp } from "./lib/client-ip.js";
+import { SERVER_VERSION } from "./lib/constants.js";
 import { localContext7Service } from "./local/service.js";
 
 /** Default HTTP server port */
@@ -37,15 +29,15 @@ const DEFAULT_PORT = 3000;
 const program = new Command()
   .version(SERVER_VERSION, "-v, --version", "output the current version")
   .option("--transport <stdio|http>", "transport type", "stdio")
+  .option("--host <host>", "HTTP bind host", "127.0.0.1")
   .option("--port <number>", "port for HTTP transport", DEFAULT_PORT.toString())
-  .option("--api-key <key>", "API key for authentication (or set CONTEXT7_API_KEY env var)")
   .allowUnknownOption() // let MCP Inspector / other wrappers pass through extra flags
   .parse(process.argv);
 
 const cliOptions = program.opts<{
   transport: string;
   port: string;
-  apiKey?: string;
+  host: string;
 }>();
 
 // Validate transport option
@@ -59,18 +51,18 @@ if (!allowedTransports.includes(cliOptions.transport)) {
 
 // Transport configuration
 const TRANSPORT_TYPE = (cliOptions.transport || "stdio") as "stdio" | "http";
+const HTTP_HOST = cliOptions.host || "127.0.0.1";
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
 
-// Disallow incompatible flags based on transport
-const passedPortFlag = process.argv.includes("--port");
-const passedApiKeyFlag = process.argv.includes("--api-key");
-
-if (TRANSPORT_TYPE === "http" && passedApiKeyFlag) {
+if (TRANSPORT_TYPE === "http" && !LOOPBACK_HOSTS.has(HTTP_HOST.toLowerCase())) {
   console.error(
-    "The --api-key flag is not allowed when using --transport http. Use header-based auth at the HTTP layer instead."
+    "Refusing a non-loopback HTTP bind. Use a locally authenticated reverse proxy or SSH tunnel for remote access."
   );
   process.exit(1);
 }
 
+// Disallow incompatible flags based on transport
+const passedPortFlag = process.argv.includes("--port");
 if (TRANSPORT_TYPE === "stdio" && passedPortFlag) {
   console.error("The --port flag is not allowed when using --transport stdio.");
   process.exit(1);
@@ -85,8 +77,6 @@ const CLI_PORT = (() => {
 const requestContext = new AsyncLocalStorage<ClientContext>();
 
 // Global state for stdio mode only
-let stdioApiKey: string | undefined;
-let stdioClientInfo: { ide?: string; version?: string } | undefined;
 // One session ID per stdio process.
 let stdioSessionId: string | undefined;
 
@@ -103,8 +93,6 @@ function getClientContext(): ClientContext {
 
   // stdio mode: use globals
   return {
-    apiKey: stdioApiKey,
-    clientInfo: stdioClientInfo,
     transport: "stdio",
     sessionId: stdioSessionId,
   };
@@ -167,11 +155,15 @@ IMPORTANT: Do not call this tool more than 3 times per question. If you cannot f
       inputSchema: {
         query: z
           .string()
+          .min(1)
+          .max(2_000)
           .describe(
             "The question or task you need help with. This ranks local library matches. Do not include secrets, credentials, personal data, or proprietary code."
           ),
         libraryName: z
           .string()
+          .min(1)
+          .max(300)
           .describe(
             "Library name to search for and retrieve a Context7-compatible library ID. Use the official library name with proper punctuation — e.g., 'Next.js' instead of 'nextjs', 'Customer.io' instead of 'customerio', 'Three.js' instead of 'threejs'."
           ),
@@ -189,7 +181,6 @@ IMPORTANT: Do not call this tool more than 3 times per question. If you cannot f
 
       if (!searchResponse.results || searchResponse.results.length === 0) {
         const text = searchResponse.error ?? "No libraries found matching the provided name.";
-        maybeElicitAuthSignIn(server, ctx);
         return {
           content: [
             {
@@ -202,7 +193,6 @@ IMPORTANT: Do not call this tool more than 3 times per question. If you cannot f
 
       const resultsText = formatSearchResults(searchResponse);
       const responseText = `Available Libraries:\n\n${resultsText}`;
-      maybeElicitAuthSignIn(server, ctx);
       return {
         content: [
           {
@@ -226,11 +216,15 @@ Do not call this tool more than 3 times per question.`,
       inputSchema: {
         libraryId: z
           .string()
+          .min(3)
+          .max(300)
           .describe(
             "Exact Context7-compatible library ID (e.g., '/mongodb/docs', '/vercel/next.js', '/supabase/supabase', '/vercel/next.js/v14.3.0-canary.87') retrieved from 'resolve-library-id' or directly from user query in the format '/org/project' or '/org/project/version'."
           ),
         query: z
           .string()
+          .min(1)
+          .max(2_000)
           .describe(
             "The question or task you need help with, scoped to a single concept. Be specific and prefer API names or configuration keywords. The query is searched only against the local SQLite index. Do not include secrets, credentials, personal data, or proprietary code."
           ),
@@ -245,7 +239,6 @@ Do not call this tool more than 3 times per question.`,
     async ({ query, libraryId }: { query: string; libraryId: string }) => {
       const ctx = getClientContext();
       const response = await fetchLibraryContext({ query, libraryId }, ctx);
-      maybeElicitAuthSignIn(server, ctx);
       return {
         content: [
           {
@@ -258,14 +251,163 @@ Do not call this tool more than 3 times per question.`,
   );
 
   server.registerTool(
+    "search-docs",
+    {
+      title: "Search Local Documentation",
+      description: `Searches one local commit-pinned library with decomposed lexical queries and reciprocal-rank fusion. Returns concise previews, exact source URLs, and stable result IDs. Use 'read-docs' on the most relevant IDs. Repeated searches in the same MCP session prefer unseen evidence. Missing libraries are indexed automatically.`,
+      inputSchema: {
+        libraryId: z
+          .string()
+          .min(3)
+          .max(300)
+          .describe("Exact /owner/repository[/version] library ID."),
+        query: z
+          .string()
+          .min(1)
+          .max(2_000)
+          .describe("A specific task, API name, error, or documentation question."),
+        maxTokens: z
+          .number()
+          .int()
+          .min(500)
+          .max(10_000)
+          .optional()
+          .describe("Optional retrieval budget. Omit for a query-dependent dynamic budget."),
+        limit: z.number().int().min(1).max(30).optional().describe("Maximum result previews."),
+        includeSeen: z
+          .boolean()
+          .optional()
+          .describe("Include results already returned in this MCP session."),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        openWorldHint: true,
+        idempotentHint: true,
+      },
+    },
+    async ({
+      libraryId,
+      query,
+      maxTokens,
+      limit,
+      includeSeen,
+    }: {
+      libraryId: string;
+      query: string;
+      maxTokens?: number;
+      limit?: number;
+      includeSeen?: boolean;
+    }) => ({
+      content: [
+        {
+          type: "text",
+          text: await localContext7Service.searchDocumentation(libraryId, query, {
+            maxTokens,
+            limit,
+            includeSeen,
+            sessionId: getClientContext().sessionId,
+          }),
+        },
+      ],
+    })
+  );
+
+  server.registerTool(
+    "read-docs",
+    {
+      title: "Read Local Documentation Result",
+      description:
+        "Reads an exact search result plus nearby sections from the same document. Use the commit-bound result key returned by search-docs or grep-docs.",
+      inputSchema: {
+        libraryId: z
+          .string()
+          .min(3)
+          .max(300)
+          .describe("Exact /owner/repository[/version] library ID."),
+        resultId: z
+          .union([z.number().int().positive(), z.string().min(42).max(64)])
+          .describe(
+            "Commit-bound result key returned by search-docs. Numeric IDs remain supported."
+          ),
+        maxTokens: z.number().int().min(500).max(10_000).optional(),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        openWorldHint: true,
+        idempotentHint: true,
+      },
+    },
+    async ({
+      libraryId,
+      resultId,
+      maxTokens,
+    }: {
+      libraryId: string;
+      resultId: number | string;
+      maxTokens?: number;
+    }) => ({
+      content: [
+        {
+          type: "text",
+          text: await localContext7Service.readDocumentation(libraryId, resultId, maxTokens),
+        },
+      ],
+    })
+  );
+
+  server.registerTool(
+    "grep-docs",
+    {
+      title: "Find Exact Text in Local Documentation",
+      description:
+        "Finds bounded, case-insensitive literal text such as an API symbol, error fragment, option, or configuration key in one local library.",
+      inputSchema: {
+        libraryId: z
+          .string()
+          .min(3)
+          .max(300)
+          .describe("Exact /owner/repository[/version] library ID."),
+        pattern: z.string().min(1).max(200).describe("Exact text to find. This is not a regex."),
+        limit: z.number().int().min(1).max(50).optional(),
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        openWorldHint: true,
+        idempotentHint: true,
+      },
+    },
+    async ({
+      libraryId,
+      pattern,
+      limit,
+    }: {
+      libraryId: string;
+      pattern: string;
+      limit?: number;
+    }) => ({
+      content: [
+        {
+          type: "text",
+          text: await localContext7Service.grepDocumentation(libraryId, pattern, { limit }),
+        },
+      ],
+    })
+  );
+
+  server.registerTool(
     "local-index-status",
     {
       title: "Local Documentation Index Status",
       description:
-        "Lists locally indexed libraries with commit SHA, indexed time, and last freshness-check time.",
+        "Reports compact local index health, migration state, prewarm progress, freshness, and semantic-cache state. Pass a library ID for its full commit-pinned provenance.",
       inputSchema: {
         libraryId: z
           .string()
+          .min(3)
+          .max(300)
           .optional()
           .describe("Optional /owner/repository library ID to inspect."),
       },
@@ -280,7 +422,7 @@ Do not call this tool more than 3 times per question.`,
       content: [
         {
           type: "text",
-          text: JSON.stringify(await localContext7Service.status(libraryId), null, 2),
+          text: JSON.stringify(await localContext7Service.indexHealth(libraryId), null, 2),
         },
       ],
     })
@@ -293,7 +435,11 @@ Do not call this tool more than 3 times per question.`,
       description:
         "Forces a repository refresh and atomically replaces its local commit-pinned documentation index.",
       inputSchema: {
-        libraryId: z.string().describe("Exact /owner/repository[/version] library ID to refresh."),
+        libraryId: z
+          .string()
+          .min(3)
+          .max(300)
+          .describe("Exact /owner/repository[/version] library ID to refresh."),
       },
       annotations: {
         readOnlyHint: false,
@@ -343,6 +489,16 @@ const TOOL_ALIASES: Record<string, AliasMap> = {
   "query-docs": {
     libraryId: ["context7CompatibleLibraryID", "libraryID", "libraryName"],
   },
+  "search-docs": {
+    libraryId: ["context7CompatibleLibraryID", "libraryID", "libraryName"],
+  },
+  "read-docs": {
+    libraryId: ["context7CompatibleLibraryID", "libraryID", "libraryName"],
+    resultId: ["chunkId", "id"],
+  },
+  "grep-docs": {
+    libraryId: ["context7CompatibleLibraryID", "libraryID", "libraryName"],
+  },
 };
 
 function applyAliases(args: Record<string, unknown>, aliases: AliasMap): void {
@@ -390,12 +546,34 @@ async function main() {
     const app = express();
     app.use(express.json());
 
+    const configuredCorsOrigins = new Set(
+      (process.env.CONTEXT7_CORS_ORIGINS ?? "")
+        .split(",")
+        .map((origin) => origin.trim())
+        .filter(Boolean)
+    );
+    const allowedCorsOrigin = (origin: string | undefined): boolean => {
+      if (!origin) return true;
+      if (configuredCorsOrigins.has(origin)) return true;
+      try {
+        return LOOPBACK_HOSTS.has(new URL(origin).hostname.toLowerCase());
+      } catch {
+        return false;
+      }
+    };
+
     app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
-      res.setHeader("Access-Control-Allow-Origin", "*");
+      const origin = extractHeaderValue(req.headers.origin);
+      if (origin && !allowedCorsOrigin(origin)) {
+        res.status(403).json({ error: "origin_not_allowed" });
+        return;
+      }
+      if (origin) res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Vary", "Origin");
       res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS,DELETE");
       res.setHeader(
         "Access-Control-Allow-Headers",
-        "Content-Type, MCP-Session-Id, MCP-Protocol-Version, X-Context7-API-Key, Context7-API-Key, X-API-Key, Authorization"
+        "Content-Type, MCP-Session-Id, MCP-Protocol-Version"
       );
       res.setHeader("Access-Control-Expose-Headers", "MCP-Session-Id");
 
@@ -411,35 +589,10 @@ async function main() {
       return typeof value === "string" ? value : value[0];
     };
 
-    const extractBearerToken = (authHeader: string | string[] | undefined): string | undefined => {
-      const header = extractHeaderValue(authHeader);
-      if (!header) return undefined;
-
-      if (header.startsWith("Bearer ")) {
-        return header.substring(7).trim();
-      }
-
-      return header;
-    };
-
-    const extractApiKey = (req: express.Request): string | undefined => {
-      return (
-        extractBearerToken(req.headers.authorization) ||
-        extractHeaderValue(req.headers["context7-api-key"]) ||
-        extractHeaderValue(req.headers["x-api-key"]) ||
-        extractHeaderValue(req.headers["context7_api_key"]) ||
-        extractHeaderValue(req.headers["x_api_key"])
-      );
-    };
-
     const sessionStore = createSessionStore();
 
-    const handleMcpRequest = async (
-      req: express.Request,
-      res: express.Response,
-      requireAuth: boolean
-    ) => {
-      // Reject GET requests — sessions are tracked in Redis, but this server does not send
+    const handleMcpRequest = async (req: express.Request, res: express.Response) => {
+      // Reject GET requests — this server does not send
       // server-initiated notifications, so SSE streams serve no purpose and cause mass NGINX
       // timeouts. Returning 405 is spec-compliant per MCP StreamableHTTP (2025-03-26).
       if (req.method === "GET") {
@@ -451,47 +604,7 @@ async function main() {
       }
 
       try {
-        const apiKey = extractApiKey(req);
-        const resourceUrl = RESOURCE_URL;
-        const baseUrl = new URL(resourceUrl).origin;
-
-        // OAuth discovery info header, used by MCP clients to discover the authorization server
-        res.set(
-          "WWW-Authenticate",
-          `Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`
-        );
-
-        if (requireAuth) {
-          if (!apiKey) {
-            return res.status(401).json({
-              jsonrpc: "2.0",
-              error: {
-                code: -32001,
-                message: "Authentication required. Please authenticate to use this MCP server.",
-              },
-              id: null,
-            });
-          }
-
-          if (isJWT(apiKey)) {
-            const validationResult = await validateJWT(apiKey);
-            if (!validationResult.valid) {
-              return res.status(401).json({
-                jsonrpc: "2.0",
-                error: {
-                  code: -32001,
-                  message: validationResult.error || "Invalid token. Please re-authenticate.",
-                },
-                id: null,
-              });
-            }
-          }
-        }
-
         const context: ClientContext = {
-          clientIp: getClientIp(req),
-          apiKey: apiKey,
-          clientInfo: extractClientInfoFromUserAgent(req.headers["user-agent"]),
           transport: "http",
         };
 
@@ -540,7 +653,7 @@ async function main() {
         context.sessionId = effectiveSessionId;
 
         // sessionIdGenerator is undefined because session lifecycle (create/refresh/delete)
-        // is owned by the route handler above and persisted in Redis, not by the SDK transport.
+        // is owned by the route handler above in local process memory, not by the SDK transport.
         //
         // Use SSE responses for tool calls (enableJsonResponse: false). The SDK then
         // flushes response headers immediately after parsing the request rather than
@@ -576,73 +689,13 @@ async function main() {
       }
     };
 
-    // Anonymous access endpoint - no authentication required
     app.all("/mcp", async (req, res) => {
-      await handleMcpRequest(req, res, false);
-    });
-
-    // OAuth-protected endpoint - requires authentication
-    app.all("/mcp/oauth", async (req, res) => {
-      await handleMcpRequest(req, res, true);
+      await handleMcpRequest(req, res);
     });
 
     app.get("/ping", (_req: express.Request, res: express.Response) => {
       res.json({ status: "ok", message: "pong" });
     });
-
-    // OAuth 2.0 Protected Resource Metadata (RFC 9728)
-    // Used by MCP clients to discover the authorization server
-    app.get(
-      "/.well-known/oauth-protected-resource",
-      (_req: express.Request, res: express.Response) => {
-        res.json({
-          resource: RESOURCE_URL,
-          authorization_servers: [AUTH_SERVER_URL],
-          scopes_supported: ["profile", "email"],
-          bearer_methods_supported: ["header"],
-        });
-      }
-    );
-
-    app.get(
-      "/.well-known/oauth-authorization-server",
-      async (_req: express.Request, res: express.Response) => {
-        const authServerUrl = AUTH_SERVER_URL;
-
-        try {
-          const response = await fetch(`${authServerUrl}/.well-known/oauth-authorization-server`);
-          if (!response.ok) {
-            console.error("[OAuth] Upstream error:", response.status);
-            return res.status(response.status).json({
-              error: "upstream_error",
-              message: "Failed to fetch authorization server metadata",
-            });
-          }
-          const metadata = await response.json();
-          res.json(metadata);
-        } catch (error) {
-          console.error("[OAuth] Error fetching OAuth metadata:", error);
-          res.status(502).json({
-            error: "proxy_error",
-            message: "Failed to proxy authorization server metadata",
-          });
-        }
-      }
-    );
-
-    // OpenAI Apps SDK domain verification challenge
-    app.get(
-      "/.well-known/openai-apps-challenge",
-      (_req: express.Request, res: express.Response) => {
-        if (!OPENAI_APPS_CHALLENGE_TOKEN) {
-          return res.status(404).json({
-            error: "not_found",
-            message: "Endpoint not found.",
-          });
-        }
-        res.type("text/plain").send(OPENAI_APPS_CHALLENGE_TOKEN);
-      }
-    );
 
     // Catch-all 404 handler - must be after all other routes
     app.use((_req: express.Request, res: express.Response) => {
@@ -653,7 +706,7 @@ async function main() {
     });
 
     const startServer = (port: number, maxAttempts = 10) => {
-      const httpServer = app.listen(port);
+      const httpServer = app.listen(port, HTTP_HOST);
 
       httpServer.once("error", (err: NodeJS.ErrnoException) => {
         if (err.code === "EADDRINUSE" && port < initialPort + maxAttempts) {
@@ -667,14 +720,13 @@ async function main() {
 
       httpServer.once("listening", () => {
         console.error(
-          `Context7 Documentation MCP Server v${SERVER_VERSION} running on HTTP at http://localhost:${port}/mcp`
+          `Context7 Documentation MCP Server v${SERVER_VERSION} running on HTTP at http://${HTTP_HOST}:${port}/mcp`
         );
       });
     };
 
     startServer(initialPort);
   } else {
-    stdioApiKey = cliOptions.apiKey || process.env.CONTEXT7_API_KEY;
     stdioSessionId = randomUUID();
 
     process.stdin.on("end", () => process.exit(0));
@@ -683,18 +735,6 @@ async function main() {
 
     const transport = new StdioServerTransport();
     const server = createMcpServer();
-
-    // Capture client info from MCP initialize handshake (stdio only — HTTP
-    // mode plumbs client info through requestContext per request).
-    server.server.oninitialized = () => {
-      const clientVersion = server.server.getClientVersion();
-      if (clientVersion) {
-        stdioClientInfo = {
-          ide: clientVersion.name,
-          version: clientVersion.version,
-        };
-      }
-    };
 
     installTransportArgAliasing(transport);
     await server.connect(transport);
