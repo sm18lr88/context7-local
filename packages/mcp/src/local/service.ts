@@ -29,6 +29,8 @@ import type {
   LocalContext7Config,
 } from "./types.js";
 
+const MAX_INDEX_CANDIDATES = 5;
+
 function resultFromManifest(manifest: LibraryManifest): SearchResult {
   const safe = (value: string, limit: number) =>
     value
@@ -166,27 +168,34 @@ export class LocalContext7Service {
         normalizeSearchName(manifest.id) === normalizeSearchName(libraryName)
     );
 
-    try {
-      const discovered = exact
-        ? {
-            ref: parseLibraryId(exact.id),
-            title: exact.title,
-            description: exact.description,
-            stars: exact.stars,
-            defaultBranch: exact.branch,
-          }
-        : await this.discovery.discover(libraryName);
-      if (discovered) {
-        const ensured = await this.ensure(discovered);
+    const candidates = exact
+      ? {
+          ref: parseLibraryId(exact.id),
+          title: exact.title,
+          description: exact.description,
+          stars: exact.stars,
+          defaultBranch: exact.branch,
+        }
+      : undefined;
+    const discovered = candidates
+      ? [candidates]
+      : await this.discovery.discoverCandidates(libraryName);
+    const failures: string[] = [];
+    for (const candidate of discovered.slice(0, MAX_INDEX_CANDIDATES)) {
+      try {
+        const ensured = await this.ensure(candidate);
         const others = local.filter((manifest) => manifest.id !== ensured.manifest.id);
         return {
           results: [resultFromManifest(ensured.manifest), ...others.map(resultFromManifest)],
         };
+      } catch (error) {
+        failures.push(`${candidate.ref.id}: ${safeError(error)}`);
       }
-    } catch (error) {
+    }
+    if (failures.length > 0) {
       return {
         results: local.map(resultFromManifest),
-        error: `Local indexing failed for ${libraryName}: ${safeError(error)}`,
+        error: `Local indexing failed for ${libraryName} after trying ${failures.join("; ")}`,
       };
     }
 
