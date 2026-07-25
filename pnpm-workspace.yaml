@@ -8,12 +8,15 @@ allowBuilds:
   protobufjs: false
 
 minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - fast-uri@3.1.4
 
 overrides:
   "@modelcontextprotocol/sdk>ajv": 8.18.0
-  "@modelcontextprotocol/sdk>hono": 4.12.25
-  ajv>fast-uri: 3.1.2
+  "@modelcontextprotocol/sdk>@hono/node-server": 2.0.10
+  "@modelcontextprotocol/sdk>hono": 4.12.27
+  ajv>fast-uri: 3.1.4
   better-sqlite3: 12.11.1
-  body-parser: 2.2.1
+  body-parser: 2.3.0
   path-to-regexp: 8.4.0
   qs: 6.15.2
