@@ -16,10 +16,6 @@ vi.mock("../utils/auth.js", () => ({
   DEFAULT_DEVICE_POLL_INTERVAL_SECONDS: 5,
 }));
 
-vi.mock("../utils/tracking.js", () => ({
-  trackEvent: vi.fn(),
-}));
-
 const mockSpinner = {
   start: vi.fn().mockReturnThis(),
   stop: vi.fn().mockReturnThis(),
@@ -36,7 +32,6 @@ vi.mock("../constants.js", () => ({ CLI_CLIENT_ID: "test-client-id" }));
 vi.mock("../utils/api.js", () => ({ getBaseUrl: () => "https://test.context7.com" }));
 
 import { registerAuthCommands, performLogin } from "../commands/auth.js";
-import { trackEvent } from "../utils/tracking.js";
 
 let logOutput: string[];
 let errorOutput: string[];
@@ -83,12 +78,6 @@ describe("login command", () => {
     expect(logOutput.some((l) => l.includes("already logged in"))).toBe(true);
   });
 
-  test("tracks login event", async () => {
-    mockGetValidAccessToken.mockResolvedValue("existing-token");
-    await runCommand("login");
-    expect(trackEvent).toHaveBeenCalledWith("command", { name: "login" });
-  });
-
   test("calls process.exit(1) when login fails", async () => {
     mockGetValidAccessToken.mockResolvedValue(null);
     mockClearTokens.mockReturnValue(false);
@@ -112,11 +101,6 @@ describe("logout command", () => {
     expect(logOutput.some((l) => l.includes("You are not logged in"))).toBe(true);
   });
 
-  test("tracks logout event", async () => {
-    mockClearTokens.mockReturnValue(false);
-    await runCommand("logout");
-    expect(trackEvent).toHaveBeenCalledWith("command", { name: "logout" });
-  });
 });
 
 describe("whoami command", () => {
@@ -162,11 +146,6 @@ describe("whoami command", () => {
     expect(logOutput.some((l) => l.includes("Session may be expired"))).toBe(true);
   });
 
-  test("tracks whoami event", async () => {
-    mockGetValidAccessToken.mockResolvedValue(null);
-    await runCommand("whoami");
-    expect(trackEvent).toHaveBeenCalledWith("command", { name: "whoami" });
-  });
 });
 
 describe("performLogin", () => {

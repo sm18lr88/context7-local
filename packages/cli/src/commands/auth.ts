@@ -12,7 +12,6 @@ import {
   DEFAULT_DEVICE_POLL_INTERVAL_SECONDS,
 } from "../utils/auth.js";
 
-import { trackEvent } from "../utils/tracking.js";
 import { CLI_CLIENT_ID } from "../constants.js";
 import { getBaseUrl } from "../utils/api.js";
 
@@ -190,7 +189,6 @@ export async function performLogin(openBrowser = true): Promise<string | null> {
 }
 
 async function loginCommand(options: { browser: boolean }): Promise<void> {
-  trackEvent("command", { name: "login" });
   const existingToken = await getValidAccessToken();
   if (existingToken) {
     console.log(pc.yellow("You are already logged in."));
@@ -208,7 +206,6 @@ async function loginCommand(options: { browser: boolean }): Promise<void> {
 }
 
 function logoutCommand(): void {
-  trackEvent("command", { name: "logout" });
   if (clearTokens()) {
     console.log(pc.green("Logged out successfully."));
   } else {
@@ -217,7 +214,6 @@ function logoutCommand(): void {
 }
 
 async function whoamiCommand(): Promise<void> {
-  trackEvent("command", { name: "whoami" });
   const accessToken = await getValidAccessToken();
 
   if (!accessToken) {

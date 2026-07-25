@@ -4,7 +4,6 @@ import { Command } from "commander";
 import pc from "picocolors";
 import { VERSION } from "../constants.js";
 import { log } from "../utils/logger.js";
-import { trackEvent } from "../utils/tracking.js";
 import {
   checkForUpdates,
   getUpgradePlan,
@@ -121,7 +120,6 @@ export async function maybeShowUpgradeNotice(
 }
 
 async function upgradeCommand(options: UpgradeOptions): Promise<void> {
-  trackEvent("command", { name: "upgrade" });
 
   const info = await checkForUpdates({ force: true });
   const plan = info?.upgradePlan ?? getUpgradePlan();

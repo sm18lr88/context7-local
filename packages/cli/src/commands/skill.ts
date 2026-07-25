@@ -32,7 +32,6 @@ import {
 import { installSkillFiles, symlinkSkill } from "../utils/installer.js";
 import { assertSkillNameInRoot } from "../utils/skill-name.js";
 import { listSkillsFromGitHub, getSkillFromGitHub } from "../utils/github.js";
-import { trackEvent } from "../utils/tracking.js";
 import { registerGenerateCommand } from "./generate.js";
 import type {
   Skill,
@@ -235,7 +234,6 @@ async function installCommand(
   skillName: string | undefined,
   options: AddOptions
 ): Promise<void> {
-  trackEvent("command", { name: "install" });
   const parsed = parseSkillInput(input);
   if (!parsed) {
     log.error(`Invalid input format: ${input}`);
@@ -471,14 +469,12 @@ async function installCommand(
   }
 
   installSpinner.succeed(`Installed ${installedSkills.length} skill(s)`);
-  trackEvent("install", { skills: installedSkills, ides: targets.ides });
 
   const installedNames = selectedSkills.map((s) => s.name);
   logInstallSummary(targets, targetDirs, installedNames);
 }
 
 async function searchCommand(query: string): Promise<void> {
-  trackEvent("command", { name: "search" });
   log.blank();
   const spinner = ora(`Searching for "${query}"...`).start();
 
@@ -501,7 +497,6 @@ async function searchCommand(query: string): Promise<void> {
   }
 
   spinner.succeed(`Found ${data.results.length} skill(s)`);
-  trackEvent("search_query", { query, resultCount: data.results.length });
   log.blank();
 
   const indexWidth = data.results.length.toString().length;
@@ -645,14 +640,12 @@ async function searchCommand(query: string): Promise<void> {
   }
 
   installSpinner.succeed(`Installed ${installedSkills.length} skill(s)`);
-  trackEvent("install", { skills: installedSkills, ides: targets.ides });
 
   const installedNames = uniqueSkills.map((s) => s.name);
   logInstallSummary(targets, targetDirs, installedNames);
 }
 
 async function listCommand(options: ListOptions): Promise<void> {
-  trackEvent("command", { name: "list" });
   const scope: Scope = options.global ? "global" : "project";
   const baseDir = scope === "global" ? homedir() : process.cwd();
 
@@ -749,7 +742,6 @@ async function listCommand(options: ListOptions): Promise<void> {
 }
 
 async function removeCommand(name: string, options: RemoveOptions): Promise<void> {
-  trackEvent("command", { name: "remove" });
   const target = await promptForSingleTarget(options);
   if (!target) {
     log.warn("Cancelled");
@@ -781,7 +773,6 @@ async function removeCommand(name: string, options: RemoveOptions): Promise<void
 }
 
 async function infoCommand(input: string): Promise<void> {
-  trackEvent("command", { name: "info" });
   const parsed = parseSkillInput(input);
   if (!parsed) {
     log.blank();
@@ -825,7 +816,6 @@ async function infoCommand(input: string): Promise<void> {
 }
 
 async function suggestCommand(options: SuggestOptions): Promise<void> {
-  trackEvent("command", { name: "suggest" });
   log.blank();
 
   // Step 1: Detect dependencies
@@ -867,7 +857,6 @@ async function suggestCommand(options: SuggestOptions): Promise<void> {
   }
 
   searchSpinner.succeed(`Found ${skills.length} relevant skill(s)`);
-  trackEvent("suggest_results", { depCount: deps.length, skillCount: skills.length });
   log.blank();
 
   const nameWithRepo = (s: SkillSearchResult) => `${s.name} ${pc.dim(`(${s.project})`)}`;
@@ -1019,7 +1008,6 @@ async function suggestCommand(options: SuggestOptions): Promise<void> {
   }
 
   installSpinner.succeed(`Installed ${installedSkills.length} skill(s)`);
-  trackEvent("suggest_install", { skills: installedSkills, ides: targets.ides });
 
   const installedNames = selectedSkills.map((s) => s.name);
   logInstallSummary(targets, targetDirs, installedNames);

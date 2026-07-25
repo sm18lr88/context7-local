@@ -8,7 +8,6 @@ import { randomBytes } from "crypto";
 
 import { log } from "../utils/logger.js";
 import { checkboxWithHover } from "../utils/prompts.js";
-import { trackEvent } from "../utils/tracking.js";
 import { getBaseUrl, downloadSkill } from "../utils/api.js";
 import { installSkillFiles } from "../utils/installer.js";
 import { performLogin } from "./auth.js";
@@ -440,8 +439,6 @@ async function setupMcp(agents: SetupAgent[], options: SetupOptions, scope: Scop
   }
   log.blank();
 
-  trackEvent("setup", { agents, scope, authMode: auth.mode });
-  trackEvent("install", { skills: ["/upstash/context7/context7-mcp"], ides: agents });
 }
 
 async function setupCliAgent(
@@ -526,12 +523,9 @@ async function setupCli(options: SetupOptions): Promise<void> {
   }
   log.blank();
 
-  trackEvent("setup", { mode: "cli" });
-  trackEvent("install", { skills: ["/upstash/context7/find-docs"], ides: agents });
 }
 
 async function setupCommand(options: SetupOptions): Promise<void> {
-  trackEvent("command", { name: "setup" });
 
   try {
     const mode = await resolveMode(options);

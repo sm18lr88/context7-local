@@ -3,7 +3,6 @@ import pc from "picocolors";
 import ora from "ora";
 import { checkboxWithHover } from "../utils/prompts.js";
 import { log } from "../utils/logger.js";
-import { trackEvent } from "../utils/tracking.js";
 import { ALL_AGENT_NAMES, SETUP_AGENT_NAMES, getAgent, type SetupAgent } from "../setup/agents.js";
 import {
   readJsonConfig,
@@ -503,7 +502,6 @@ function printResults(results: AgentCleanupResult[], modes: UninstallMode[]): vo
 }
 
 async function removeCommand(options: UninstallOptions): Promise<void> {
-  trackEvent("command", { name: "remove" });
 
   const scope: Scope = options.project ? "project" : "global";
   const agents = await resolveAgents(options, scope);
@@ -523,5 +521,4 @@ async function removeCommand(options: UninstallOptions): Promise<void> {
   spinner.succeed("Context7 cleanup complete");
   printResults(results, modes);
 
-  trackEvent("remove", { agents, scope, modes });
 }

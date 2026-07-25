@@ -141,18 +141,6 @@ The CLI automatically detects which AI coding assistants you have installed and 
 | Cursor                                                              | `.cursor/skills/` |
 | Antigravity                                                         | `.agent/skills/`  |
 
-## Disabling Telemetry
-
-The CLI collects anonymous usage data to help improve the product. To disable telemetry, set the `CTX7_TELEMETRY_DISABLED` environment variable:
-
-```bash
-# For a single command
-CTX7_TELEMETRY_DISABLED=1 ctx7 docs /facebook/react "useEffect examples"
-
-# Or export in your shell profile (~/.bashrc, ~/.zshrc, etc.)
-export CTX7_TELEMETRY_DISABLED=1
-```
-
 ## Learn More
 
 Visit [context7.com](https://context7.com) for documentation lookup and setup guides.

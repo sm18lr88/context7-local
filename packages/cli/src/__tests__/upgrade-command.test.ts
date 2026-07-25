@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { Command } from "commander";
 
-const trackEvent = vi.fn();
 const checkForUpdates = vi.fn();
 const getUpgradePlan = vi.fn();
 const markUpdateNotificationShown = vi.fn();
@@ -9,10 +8,6 @@ const shouldShowUpdateNotification = vi.fn();
 const shouldSkipUpdateNotifier = vi.fn();
 const confirm = vi.fn();
 const spawn = vi.fn();
-
-vi.mock("../utils/tracking.js", () => ({
-  trackEvent: (...args: unknown[]) => trackEvent(...args),
-}));
 
 vi.mock("../utils/update-check.js", () => ({
   checkForUpdates: (...args: unknown[]) => checkForUpdates(...args),
@@ -81,7 +76,6 @@ describe("upgrade command", () => {
     await runCommand("upgrade");
 
     expect(plainLogOutput().some((line) => line.includes("ctx7 is up to date"))).toBe(true);
-    expect(trackEvent).toHaveBeenCalledWith("command", { name: "upgrade" });
   });
 
   test("prints upgrade instructions in check mode", async () => {

@@ -5,7 +5,6 @@ import ora from "ora";
 import { resolveLibrary, getLibraryContext } from "../utils/api.js";
 import { recoverLibraryId } from "../utils/library-id.js";
 import { log } from "../utils/logger.js";
-import { trackEvent } from "../utils/tracking.js";
 import { loadTokens, isTokenExpired } from "../utils/auth.js";
 import type { LibrarySearchResult, ContextResponse } from "../types.js";
 
@@ -54,7 +53,6 @@ async function resolveCommand(
   query: string | undefined,
   options: { json?: boolean }
 ): Promise<void> {
-  trackEvent("command", { name: "library" });
 
   const spinner = isTTY ? ora(`Searching for "${library}"...`).start() : null;
   const accessToken = getAccessToken();
@@ -119,7 +117,6 @@ async function queryCommand(
   query: string,
   options: { json?: boolean }
 ): Promise<void> {
-  trackEvent("command", { name: "docs" });
 
   // Git Bash on Windows rewrites "/owner/repo" into a Windows path; recover it.
   libraryId = recoverLibraryId(libraryId);

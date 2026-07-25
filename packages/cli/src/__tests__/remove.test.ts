@@ -4,13 +4,8 @@ import { mkdir, readFile, writeFile, rm, access } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 
-const trackEvent = vi.fn();
 const mockCheckboxWithHover = vi.fn();
 let logOutput: string[];
-
-vi.mock("../utils/tracking.js", () => ({
-  trackEvent: (...args: unknown[]) => trackEvent(...args),
-}));
 
 vi.mock("../utils/prompts.js", () => ({
   checkboxWithHover: (...args: unknown[]) => mockCheckboxWithHover(...args),
@@ -83,12 +78,6 @@ describe("remove command", () => {
     expect(await exists(rulePath)).toBe(false);
     expect(await exists(join(tempDir, ".cursor", "skills", "find-docs"))).toBe(false);
     expect(await exists(mcpSkillPath)).toBe(true);
-    expect(trackEvent).toHaveBeenCalledWith("command", { name: "remove" });
-    expect(trackEvent).toHaveBeenCalledWith("remove", {
-      agents: ["cursor"],
-      scope: "project",
-      modes: ["cli"],
-    });
   });
 
   test("removes only MCP artifacts for codex project setup", async () => {
@@ -123,11 +112,6 @@ describe("remove command", () => {
     expect(tomlContent).not.toContain("[mcp_servers.context7]");
     expect(await exists(join(tempDir, ".agents", "skills", "context7-mcp"))).toBe(false);
     expect(await exists(cliSkillPath)).toBe(true);
-    expect(trackEvent).toHaveBeenCalledWith("remove", {
-      agents: ["codex"],
-      scope: "project",
-      modes: ["mcp"],
-    });
   });
 
   test("supports uninstall alias and --all to remove both setup modes", async () => {
@@ -159,11 +143,6 @@ describe("remove command", () => {
     expect(await exists(join(tempDir, ".agents", "skills", "context7-mcp"))).toBe(false);
     expect(await exists(join(tempDir, ".agents", "skills", "find-docs"))).toBe(false);
     expect(await readFile(tomlPath, "utf-8")).not.toContain("[mcp_servers.context7]");
-    expect(trackEvent).toHaveBeenCalledWith("remove", {
-      agents: ["codex"],
-      scope: "project",
-      modes: ["mcp", "cli"],
-    });
   });
 
   test("skips mode prompt when only one setup mode exists", async () => {
@@ -186,11 +165,6 @@ describe("remove command", () => {
     expect(await exists(rulePath)).toBe(false);
     expect(await exists(join(tempDir, ".cursor", "skills", "find-docs"))).toBe(false);
     expect(await exists(mcpSkillPath)).toBe(false);
-    expect(trackEvent).toHaveBeenCalledWith("remove", {
-      agents: ["cursor"],
-      scope: "project",
-      modes: ["cli"],
-    });
   });
 
   test("prompts for setup mode when both MCP and CLI artifacts exist", async () => {
@@ -225,11 +199,6 @@ describe("remove command", () => {
     expect(await exists(join(tempDir, ".agents", "skills", "find-docs"))).toBe(false);
     expect(await exists(mcpSkillPath)).toBe(true);
     expect(await readFile(tomlPath, "utf-8")).toContain("[mcp_servers.context7]");
-    expect(trackEvent).toHaveBeenCalledWith("remove", {
-      agents: ["codex"],
-      scope: "project",
-      modes: ["cli"],
-    });
   });
 
   test("does not log not found items when other artifacts were removed", async () => {

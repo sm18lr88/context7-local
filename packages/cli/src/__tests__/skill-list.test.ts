@@ -4,12 +4,7 @@ import { mkdir, rm, realpath } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 
-const trackEvent = vi.fn();
 let logOutput: string[];
-
-vi.mock("../utils/tracking.js", () => ({
-  trackEvent: (...args: unknown[]) => trackEvent(...args),
-}));
 
 import { registerSkillCommands } from "../commands/skill.js";
 
@@ -64,7 +59,6 @@ describe("skills list command", () => {
         },
       ],
     });
-    expect(trackEvent).toHaveBeenCalledWith("command", { name: "list" });
   });
 
   test("outputs an empty JSON list when no skills are installed", async () => {
