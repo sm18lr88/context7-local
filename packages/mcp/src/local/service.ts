@@ -1,4 +1,3 @@
-import { initDatabase } from "@neuledge/context";
 import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type {
@@ -30,6 +29,11 @@ import type {
 } from "./types.js";
 
 const MAX_INDEX_CANDIDATES = 5;
+
+async function initializeNativeDatabase(): Promise<void> {
+  const { initDatabase } = await import("@neuledge/context");
+  await initDatabase();
+}
 
 function resultFromManifest(manifest: LibraryManifest): SearchResult {
   const safe = (value: string, limit: number) =>
@@ -82,7 +86,9 @@ export class LocalContext7Service {
     this.store = new LocalLibraryStore(config);
     this.discovery = new LibraryDiscovery(config);
     this.builder = new LocalLibraryBuilder(config, this.store);
-    this.ready = Promise.all([this.store.initialize(), initDatabase()]).then(() => undefined);
+    this.ready = Promise.all([this.store.initialize(), initializeNativeDatabase()]).then(
+      () => undefined
+    );
   }
 
   private async buildOnce(
