@@ -21,6 +21,7 @@ import { randomUUID } from "node:crypto";
 import { createSessionStore } from "./lib/sessionStore.js";
 import { SERVER_VERSION } from "./lib/constants.js";
 import { localContext7Service } from "./local/service.js";
+import { assertSupportedNodeRuntime } from "./runtime.js";
 
 /** Default HTTP server port */
 const DEFAULT_PORT = 3000;
@@ -538,6 +539,7 @@ function installTransportArgAliasing(transport: Transport): void {
 }
 
 async function main() {
+  assertSupportedNodeRuntime();
   const transportType = TRANSPORT_TYPE;
 
   if (transportType === "http") {

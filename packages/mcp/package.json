@@ -34,6 +34,9 @@
   ],
   "author": "abdush",
   "license": "MIT",
+  "engines": {
+    "node": "26.x"
+  },
   "type": "module",
   "bin": {
     "context7-mcp": "dist/index.js"
