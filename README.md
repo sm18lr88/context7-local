@@ -1,174 +1,187 @@
-![Cover](https://github.com/upstash/context7/blob/master/public/cover.png?raw=true)
+# Context7 Local
 
-[![Install MCP Server](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/en/install-mcp?name=context7&config=eyJ1cmwiOiJodHRwczovL21jcC5jb250ZXh0Ny5jb20vbWNwIn0%3D)
+A complete local-first, Context7-compatible MCP server for current library documentation.
 
-# Context7 Platform - Up-to-date Code Docs For Any Prompt
+Unlike the upstream open-source MCP, this fork includes the discovery, ingestion, storage, freshness, and retrieval pipeline needed to serve documentation locally. Missing libraries build automatically during the first request. There is no hosted Context7 API, API key, quota, telemetry, authentication, or remote inference.
 
-> [!IMPORTANT]
-> This checkout is a quota-free local-first fork. It serves commit-pinned SQLite
-> indexes from `C:\Apps\System\Context7\index`, performs no Context7 telemetry or
-> hosted authentication, and automatically builds or refreshes missing libraries.
-> See [the MCP local-first guide](packages/mcp/README.md#local-first-index).
+## What this version adds
 
-[![Website](https://img.shields.io/badge/Website-context7.com-blue)](https://context7.com) [![smithery badge](https://smithery.ai/badge/@upstash/context7-mcp)](https://smithery.ai/server/@upstash/context7-mcp) [![NPM Version](https://img.shields.io/npm/v/%40upstash%2Fcontext7-mcp?color=red)](https://www.npmjs.com/package/@upstash/context7-mcp) [![MIT licensed](https://img.shields.io/npm/l/%40upstash%2Fcontext7-mcp)](./LICENSE)
+### Automatic local indexing
 
-[![繁體中文](https://img.shields.io/badge/docs-繁體中文-yellow)](./i18n/README.zh-TW.md) [![简体中文](https://img.shields.io/badge/docs-简体中文-yellow)](./i18n/README.zh-CN.md) [![日本語](https://img.shields.io/badge/docs-日本語-b7003a)](./i18n/README.ja.md) [![한국어 문서](https://img.shields.io/badge/docs-한국어-green)](./i18n/README.ko.md) [![Documentación en Español](https://img.shields.io/badge/docs-Español-orange)](./i18n/README.es.md) [![Documentation en Français](https://img.shields.io/badge/docs-Français-blue)](./i18n/README.fr.md) [![Documentação em Português (Brasil)](<https://img.shields.io/badge/docs-Português%20(Brasil)-purple>)](./i18n/README.pt-BR.md) [![Documentazione in italiano](https://img.shields.io/badge/docs-Italian-red)](./i18n/README.it.md) [![Dokumentasi Bahasa Indonesia](https://img.shields.io/badge/docs-Bahasa%20Indonesia-pink)](./i18n/README.id-ID.md) [![Dokumentation auf Deutsch](https://img.shields.io/badge/docs-Deutsch-darkgreen)](./i18n/README.de.md) [![Документация на русском языке](https://img.shields.io/badge/docs-Русский-darkblue)](./i18n/README.ru.md) [![Українська документація](https://img.shields.io/badge/docs-Українська-lightblue)](./i18n/README.uk.md) [![Türkçe Doküman](https://img.shields.io/badge/docs-Türkçe-blue)](./i18n/README.tr.md) [![Arabic Documentation](https://img.shields.io/badge/docs-Arabic-white)](./i18n/README.ar.md) [![Tiếng Việt](https://img.shields.io/badge/docs-Tiếng%20Việt-red)](./i18n/README.vi.md)
+- Resolves explicit GitHub IDs and library names through npm, PyPI, crates.io, and GitHub.
+- Builds a missing library before returning the first query; concurrent requests share one build.
+- Stores SQLite FTS5 indexes and manifests under a cross-process per-library lock.
+- Records the exact repository commit, parser version, index time, freshness time, and document counts.
+- Prioritizes documentation, API references, and guides while removing duplicates and repository agent rules.
 
-## ❌ Without Context7
+### Better retrieval
 
-LLMs rely on outdated or generic information about the libraries you use. You get:
+- Decomposes each task into keyword, intersection, identifier, and quoted-phrase searches.
+- Combines BM25 results with reciprocal-rank fusion, API/title boosts, coverage, and document diversity.
+- Uses dynamic context budgets instead of returning a fixed block of loosely related text.
+- Optionally reranks a bounded candidate set with local Ollama embeddings and caches vectors by commit and model.
+- Fails open to lexical search when Ollama is unavailable.
+- Prefers unseen evidence during repeated searches in the same MCP session.
+- Supports concise search followed by exact read, adjacent-section expansion, literal grep, and the original Context7-compatible query flow.
+- Uses commit-bound result keys and refuses reads after the underlying index has moved to a different commit.
 
-- ❌ Code examples are outdated and based on year-old training data
-- ❌ Hallucinated APIs that don't even exist
-- ❌ Generic answers for old package versions
+### Freshness and scale
 
-## ✅ With Context7
+- Checks upstream commits every 24 hours by default and refreshes changed libraries atomically.
+- Rebuilds parser-obsolete indexes automatically before serving them.
+- Includes resumable prewarm and migration jobs with durable progress files.
+- Generates a popularity-based catalog for prebuilding 1,000 commonly queried libraries at their latest upstream commits.
+- Exposes freshness, provenance, migration, prewarm, and semantic-cache state through MCP tools.
 
-Context7 pulls up-to-date, version-specific documentation and code examples straight from the source — and places them directly into your prompt.
+### Local security
 
-```txt
-Create a Next.js middleware that checks for a valid JWT in cookies
-and redirects unauthenticated users to `/login`. use context7
+- Treats repository documentation as untrusted input and marks it as data, not MCP instructions.
+- Excludes agent-instruction files, avoids symlinks, and bounds file reads, index size, queries, and responses.
+- Disables Git hooks, credentials, LFS filters, filesystem monitoring, and unsafe file/ext protocols while indexing.
+- Restricts external discovery to package registries and public GitHub HTTPS.
+- Uses parameterized literal grep instead of executing user regular expressions.
+- Binds HTTP transport to loopback and rejects unapproved browser origins.
+- Exact-pins direct dependencies and keeps registry integrity hashes in the lockfile.
+
+### Measured retrieval
+
+The included regression harness compares the original single-query BM25 path with fused retrieval using commit-pinned scenarios. It records MRR, recall, and latency history so retrieval changes can be measured instead of judged by examples alone.
+
+On Windows, indexes are stored in `C:\Apps\System\Context7\index` by default. On other platforms, the default is `~/.cache/context7-local`.
+
+## Requirements
+
+- Node.js 22.12 or newer
+- pnpm
+- Git
+- Optional: Ollama with `qwen3-embedding:0.6b` for local semantic reranking
+
+## Build
+
+```powershell
+git clone https://github.com/sm18lr88/context7-local.git
+cd context7-local
+pnpm install --frozen-lockfile
+pnpm --filter @upstash/context7-mcp build
 ```
 
-```txt
-Configure a Cloudflare Worker script to cache
-JSON API responses for five minutes. use context7
+Run the MCP server over stdio:
+
+```powershell
+node packages/mcp/dist/index.js --transport stdio
 ```
 
-```txt
-Show me the Supabase auth API for email/password sign-up.
+## MCP configuration
+
+Replace the path below if you cloned the repository somewhere else.
+
+Codex, in `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.context7]
+command = "node"
+args = [
+  "D:\\Apps\\LLM\\context7-local\\packages\\mcp\\dist\\index.js",
+  "--transport",
+  "stdio"
+]
+
+[mcp_servers.context7.env]
+CONTEXT7_LOCAL_STORAGE_DIR = "C:\\Apps\\System\\Context7\\index"
 ```
 
-Context7 fetches up-to-date code examples and documentation right into your LLM's context. No tab-switching, no hallucinated APIs that don't exist, no outdated code generation.
+VS Code, in the user or workspace `mcp.json`:
 
-Works in two modes:
-
-- **CLI + Skills** — installs a skill that guides your agent to fetch docs using `ctx7` CLI commands (no MCP required)
-- **MCP** — registers a Context7 MCP server so your agent can call documentation tools natively
-
-## Installation
-
-> [!NOTE]
-> **API Key Recommended**: Get a free API key at [context7.com/dashboard](https://context7.com/dashboard) for higher rate limits.
-
-Set up Context7 for your coding agents with a single command. The `ctx7` CLI requires Node.js 18 or newer.
-
-```bash
-npx ctx7 setup
+```json
+{
+  "servers": {
+    "context7": {
+      "type": "stdio",
+      "command": "node",
+      "args": [
+        "D:\\Apps\\LLM\\context7-local\\packages\\mcp\\dist\\index.js",
+        "--transport",
+        "stdio"
+      ],
+      "env": {
+        "CONTEXT7_LOCAL_STORAGE_DIR": "C:\\Apps\\System\\Context7\\index"
+      }
+    }
+  }
+}
 ```
 
-Authenticates via OAuth, generates an API key, and installs the appropriate skill. You can choose between CLI + Skills or MCP mode. Use `--cursor`, `--claude`, or `--opencode` to target a specific agent.
+OpenCode, in `~/.config/opencode/opencode.json`:
 
-To remove the generated setup later, run `npx ctx7 remove`. If you globally installed the CLI with `npm install -g ctx7`, remove that package separately with `npm uninstall -g ctx7`.
-
-To configure manually, use the Context7 server URL `https://mcp.context7.com/mcp` with your MCP client and pass your API key via the `CONTEXT7_API_KEY` header. See the link below for client-specific setup instructions.
-
-**[Manual Installation / Other Clients →](https://context7.com/docs/resources/all-clients)**
-
-## Important Tips
-
-### Use Library Id
-
-If you already know exactly which library you want to use, add its Context7 ID to your prompt. That way, Context7 can skip the library-matching step and directly retrieve docs.
-
-```txt
-Implement basic authentication with Supabase. use library /supabase/supabase for API and docs.
+```json
+{
+  "mcp": {
+    "context7": {
+      "type": "local",
+      "command": [
+        "node",
+        "D:\\Apps\\LLM\\context7-local\\packages\\mcp\\dist\\index.js",
+        "--transport",
+        "stdio"
+      ],
+      "environment": {
+        "CONTEXT7_LOCAL_STORAGE_DIR": "C:\\Apps\\System\\Context7\\index"
+      },
+      "enabled": true
+    }
+  }
+}
 ```
 
-The slash syntax tells Context7 exactly which library to load docs for.
+Restart or reload clients that were already running when their configuration changed.
 
-### Specify a Version
+## Tools
 
-To get documentation for a specific library version, just mention the version in your prompt:
+- `resolve-library-id`: finds a Context7-compatible library ID.
+- `query-docs`: returns answer-ready documentation and builds the library first when needed.
+- `search-docs`: returns ranked previews with commit-bound result keys.
+- `read-docs`: reads a selected result with adjacent sections.
+- `grep-docs`: searches locally for an exact API name, option, or error.
+- `local-index-status`: reports freshness, migration, prewarm, and semantic-cache state.
+- `refresh-local-index`: refreshes a library to its current upstream commit.
 
-```txt
-How do I set up Next.js 14 middleware? use context7
+## Index maintenance
+
+Prebuild the common-library catalog:
+
+```powershell
+node packages/mcp/dist/prewarm.js --target 1000 --candidates 1600 --concurrency 2
 ```
 
-Context7 will automatically match the appropriate version.
+Upgrade existing indexes after a parser change:
 
-### Add a Rule
-
-If you installed via `ctx7 setup`, a skill is configured automatically that triggers Context7 for library-related questions. To set up a rule manually instead, add one to your coding agent:
-
-- **Cursor**: `Cursor Settings > Rules`
-- **Claude Code**: `CLAUDE.md`
-- Or the equivalent in your coding agent
-
-**Example rule:**
-
-```txt
-Always use Context7 when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
+```powershell
+node packages/mcp/dist/migrate-index.js --concurrency 2
 ```
 
-## Available Tools
+Run the retrieval regression suite:
 
-### CLI Commands
+```powershell
+node packages/mcp/dist/evaluate-retrieval.js
+```
 
-- `ctx7 library <name> <query>`: Searches the Context7 index by library name and returns matching libraries with their IDs.
-- `ctx7 docs <libraryId> <query>`: Retrieves documentation for a library using a Context7-compatible library ID (e.g., `/mongodb/docs`, `/vercel/next.js`).
+Progress and evaluation history are kept inside the index directory, so interrupted jobs resume and retrieval changes remain comparable over time.
 
-### MCP Tools
+## Configuration
 
-- `resolve-library-id`: Resolves a general library name into a Context7-compatible library ID.
-  - `query` (required): The user's question or task (used to rank results by relevance)
-  - `libraryName` (required): The name of the library to search for
-- `query-docs`: Retrieves documentation for a library using a Context7-compatible library ID.
-  - `libraryId` (required): Exact Context7-compatible library ID (e.g., `/mongodb/docs`, `/vercel/next.js`)
-  - `query` (required): The question or task to get relevant documentation for
-- `search-docs`: Returns concise fused/hybrid results with commit-bound keys.
-- `read-docs`: Reads one result with adjacent document sections.
-- `grep-docs`: Finds exact API names, options, and error fragments locally.
-- `local-index-status`: Reports freshness, parser migration, prewarm, and semantic-cache state.
-- `refresh-local-index`: Atomically refreshes one library to its current upstream commit.
+The most useful environment variables are:
 
-## More Documentation
+| Variable                       | Default                       | Purpose                                            |
+| ------------------------------ | ----------------------------- | -------------------------------------------------- |
+| `CONTEXT7_LOCAL_STORAGE_DIR`   | Platform-specific local cache | Index location                                     |
+| `CONTEXT7_REFRESH_INTERVAL_MS` | `86400000`                    | Upstream freshness-check interval                  |
+| `CONTEXT7_LOCAL_EMBEDDINGS`    | Enabled                       | Set to `off` for lexical retrieval only            |
+| `CONTEXT7_EMBEDDING_MODEL`     | `qwen3-embedding:0.6b`        | Local Ollama embedding model                       |
+| `CONTEXT7_EMBEDDING_BASE_URL`  | `http://127.0.0.1:11434`      | Local Ollama endpoint                              |
+| `GITHUB_TOKEN` or `GH_TOKEN`   | Unset                         | Optional GitHub search and metadata authentication |
 
-- [CLI Reference](https://context7.com/docs/clients/cli) - Full CLI documentation
-- [MCP Clients](https://context7.com/docs/resources/all-clients) - Manual MCP installation for 30+ clients
-- [Adding Libraries](https://context7.com/docs/adding-libraries) - Submit your library to Context7
-- [Troubleshooting](https://context7.com/docs/resources/troubleshooting) - Common issues and solutions
-- [API Reference](https://context7.com/docs/api-guide) - REST API documentation
-- [Developer Guide](https://context7.com/docs/resources/developer) - Run Context7 MCP locally
+All limits, storage details, design influences, and architecture invariants are documented in [packages/mcp/README.md](packages/mcp/README.md) and [packages/mcp/LOCAL_ARCHITECTURE.md](packages/mcp/LOCAL_ARCHITECTURE.md).
 
-## Packages
+## License
 
-- [`@upstash/context7-mcp`](https://www.npmjs.com/package/@upstash/context7-mcp) - MCP server
-- [`ctx7`](https://www.npmjs.com/package/ctx7) - CLI
-- [`@upstash/context7-sdk`](https://www.npmjs.com/package/@upstash/context7-sdk) - TypeScript SDK
-- [`@upstash/context7-tools-ai-sdk`](https://www.npmjs.com/package/@upstash/context7-tools-ai-sdk) - Vercel AI SDK tools
-- [`@upstash/context7-pi`](https://www.npmjs.com/package/@upstash/context7-pi) - pi.dev extension
-
-## Disclaimer
-
-1- Context7 projects are community-contributed and while we strive to maintain high quality, we cannot guarantee the accuracy, completeness, or security of all library documentation. Projects listed in Context7 are developed and maintained by their respective owners, not by Context7. If you encounter any suspicious, inappropriate, or potentially harmful content, please use the "Report" button on the project page to notify us immediately. We take all reports seriously and will review flagged content promptly to maintain the integrity and safety of our platform. By using Context7, you acknowledge that you do so at your own discretion and risk.
-
-2- This repository hosts the MCP server’s source code. The supporting components — API backend, parsing engine, and crawling engine — are private and not part of this repository.
-
-## 🤝 Connect with Us
-
-Stay updated and join our community:
-
-- 📢 Follow us on [X](https://x.com/context7ai) for the latest news and updates
-- 🌐 Visit our [Website](https://context7.com)
-- 💬 Join our [Discord Community](https://upstash.com/discord)
-
-## 📺 Context7 In Media
-
-- [Better Stack: "Free Tool Makes Cursor 10x Smarter"](https://youtu.be/52FC3qObp9E)
-- [Cole Medin: "This is Hands Down the BEST MCP Server for AI Coding Assistants"](https://www.youtube.com/watch?v=G7gK8H6u7Rs)
-- [Income Stream Surfers: "Context7 + SequentialThinking MCPs: Is This AGI?"](https://www.youtube.com/watch?v=-ggvzyLpK6o)
-- [Julian Goldie SEO: "Context7: New MCP AI Agent Update"](https://www.youtube.com/watch?v=CTZm6fBYisc)
-- [JeredBlu: "Context 7 MCP: Get Documentation Instantly + VS Code Setup"](https://www.youtube.com/watch?v=-ls0D-rtET4)
-- [Income Stream Surfers: "Context7: The New MCP Server That Will CHANGE AI Coding"](https://www.youtube.com/watch?v=PS-2Azb-C3M)
-- [AICodeKing: "Context7 + Cline & RooCode: This MCP Server Makes CLINE 100X MORE EFFECTIVE!"](https://www.youtube.com/watch?v=qZfENAPMnyo)
-- [Sean Kochel: "5 MCP Servers For Vibe Coding Glory (Just Plug-In & Go)"](https://www.youtube.com/watch?v=LqTQi8qexJM)
-
-## ⭐ Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=upstash/context7&type=Date)](https://www.star-history.com/#upstash/context7&Date)
-
-## 📄 License
-
-MIT
+MIT. This project is based on [Upstash Context7](https://github.com/upstash/context7).
