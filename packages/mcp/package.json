@@ -35,7 +35,7 @@
   "author": "abdush",
   "license": "MIT",
   "engines": {
-    "node": "24.x"
+    "node": "26.x"
   },
   "type": "module",
   "bin": {

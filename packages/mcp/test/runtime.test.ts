@@ -3,11 +3,11 @@ import { SUPPORTED_NODE_MAJOR, assertSupportedNodeRuntime } from "../src/runtime
 
 describe("MCP native runtime compatibility", () => {
   test("accepts the Node.js runtime used to install native SQLite dependencies", () => {
-    expect(() => assertSupportedNodeRuntime("24.18.0")).not.toThrow();
+    expect(() => assertSupportedNodeRuntime("26.5.0")).not.toThrow();
   });
 
   test("rejects an incompatible runtime before native modules are loaded", () => {
-    expect(() => assertSupportedNodeRuntime("26.5.0")).toThrow(
+    expect(() => assertSupportedNodeRuntime("24.18.0")).toThrow(
       `Context7 Local requires Node.js ${SUPPORTED_NODE_MAJOR}.x`
     );
   });

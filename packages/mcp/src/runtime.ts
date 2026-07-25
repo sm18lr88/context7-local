@@ -1,4 +1,4 @@
-export const SUPPORTED_NODE_MAJOR = 24;
+export const SUPPORTED_NODE_MAJOR = 26;
 
 export function assertSupportedNodeRuntime(nodeVersion: string = process.versions.node): void {
   const major = Number.parseInt(nodeVersion.split(".", 1)[0] ?? "", 10);
