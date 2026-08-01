@@ -52,7 +52,7 @@
     "eslint-plugin-prettier": "^5.5.6",
     "prettier": "^3.6.2",
     "typescript": "^5.8.2",
-    "typescript-eslint": "^8.64.0"
+    "typescript-eslint": "^8.65.0"
   },
   "dependencies": {
     "@inquirer/core": "^11.2.1",
