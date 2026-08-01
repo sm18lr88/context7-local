@@ -51,7 +51,7 @@
   },
   "homepage": "https://github.com/upstash/context7#readme",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.29.0",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "@neuledge/context": "1.2.0",
     "better-sqlite3": "12.11.1",
     "commander": "15.0.0",
