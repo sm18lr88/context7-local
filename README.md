@@ -1,62 +1,63 @@
 # Context7 Local
 
-A complete local-first, Context7-compatible MCP server for current library documentation.
+Context7 Local is a complete local-first, Context7-compatible MCP server for current library documentation.
 
-Unlike the upstream open-source MCP, this fork includes the discovery, ingestion, storage, freshness, and retrieval pipeline needed to serve documentation locally. Missing libraries build automatically during the first request. There is no hosted Context7 API, API key, quota, telemetry, authentication, or remote inference.
+Unlike the upstream open-source MCP, this fork handles discovery, ingestion, storage, freshness, and retrieval locally. Missing libraries build automatically during the first request. It has no hosted Context7 API, API key, quota, telemetry, authentication, or remote inference.
 
-## What this version adds
+## Capabilities
 
-### Automatic local indexing
+### Local indexing
 
-- Resolves explicit GitHub IDs and library names through npm, PyPI, crates.io, and GitHub.
-- Builds a missing library before returning the first query; concurrent requests share one build.
-- Stores SQLite FTS5 indexes and manifests under a cross-process per-library lock.
-- Records the exact repository commit, parser version, index time, freshness time, and document counts.
-- Prioritizes documentation, API references, and guides while removing duplicates and repository agent rules.
+- It resolves explicit GitHub IDs and library names through npm, PyPI, crates.io, and GitHub, then builds missing libraries before returning the first query.
+- Concurrent requests share one build.
+- Cross-process per-library locks protect SQLite FTS5 indexes and manifests.
+- Each index records the exact repository commit, parser version, index time, freshness time, and document counts.
+- Indexing prioritizes documentation, API references, and guides, and removes duplicates and repository agent rules.
 
-### Better retrieval
+### Retrieval
 
-- Decomposes each task into keyword, intersection, identifier, and quoted-phrase searches.
-- Combines BM25 results with reciprocal-rank fusion, API/title boosts, coverage, and document diversity.
-- Uses dynamic context budgets instead of returning a fixed block of loosely related text.
-- Optionally reranks a bounded candidate set with local Ollama embeddings and caches vectors by commit and model.
-- Fails open to lexical search when Ollama is unavailable.
-- Prefers unseen evidence during repeated searches in the same MCP session.
-- Supports concise search followed by exact read, adjacent-section expansion, literal grep, and the original Context7-compatible query flow.
-- Uses commit-bound result keys and refuses reads after the underlying index has moved to a different commit.
+- Retrieval splits tasks into keyword, intersection, identifier, and quoted-phrase searches, then combines BM25 with reciprocal-rank fusion, API/title boosts, coverage, and document diversity.
+- Dynamic context budgets replace fixed blocks of loosely related text.
+- Optional local Ollama embeddings rerank bounded candidates. The server caches vectors by commit and model.
+- If Ollama is unavailable, lexical search continues.
+- Within one MCP session, repeated searches prefer unseen evidence.
+- Tools support concise search followed by exact reads, adjacent-section expansion, literal grep, and the original Context7-compatible query flow.
+- Commit-bound result keys prevent reads after the underlying index moves to a different commit.
 
 ### Freshness and scale
 
-- Checks upstream commits every 24 hours by default and refreshes changed libraries atomically.
-- Rebuilds parser-obsolete indexes automatically before serving them.
-- Includes resumable prewarm and migration jobs with durable progress files.
-- Generates a popularity-based catalog for prebuilding 1,000 commonly queried libraries at their latest upstream commits.
-- Exposes freshness, provenance, migration, prewarm, and semantic-cache state through MCP tools.
+- By default, it checks upstream commits every 24 hours and atomically refreshes changed libraries.
+- It automatically rebuilds parser-obsolete indexes before use.
+- Durable progress files make prewarm and migration jobs resumable.
+- It generates a popularity-based catalog to prebuild 1,000 common libraries at their latest upstream commits.
+- MCP tools expose freshness, provenance, migration, prewarm, and semantic-cache state.
 
 ### Local security
 
-- Treats repository documentation as untrusted input and marks it as data, not MCP instructions.
-- Excludes agent-instruction files, avoids symlinks, and bounds file reads, index size, queries, and responses.
-- Disables Git hooks, credentials, LFS filters, filesystem monitoring, and unsafe file/ext protocols while indexing.
-- Restricts external discovery to package registries and public GitHub HTTPS.
-- Uses parameterized literal grep instead of executing user regular expressions.
-- Binds HTTP transport to loopback and rejects unapproved browser origins.
-- Exact-pins direct dependencies and keeps registry integrity hashes in the lockfile.
+- It treats repository documentation as untrusted data, not MCP instructions.
+- It excludes agent-instruction files, avoids symlinks, and limits file reads, index size, queries, and responses.
+- Indexing disables Git hooks, credentials, LFS filters, filesystem monitoring, and unsafe file/ext protocols.
+- External discovery uses only package registries and public GitHub HTTPS.
+- Parameterized literal grep never executes user regular expressions.
+- HTTP transport binds to loopback and rejects unapproved browser origins.
+- The lockfile keeps registry integrity hashes, and direct dependencies use exact versions.
 
 ### Measured retrieval
 
-The included regression harness compares the original single-query BM25 path with fused retrieval using commit-pinned scenarios. It records MRR, recall, and latency history so retrieval changes can be measured instead of judged by examples alone.
+A regression harness uses commit-pinned scenarios to compare fused retrieval with the original single-query BM25 path. It records MRR, recall, and latency history to measure retrieval changes without relying on examples alone.
 
-On Windows, indexes are stored in `C:\Apps\System\Context7\index` by default. On other platforms, the default is `~/.cache/context7-local`.
+On Windows, the default index directory is `C:\Apps\System\Context7\index`. On other platforms, it is `~/.cache/context7-local`.
 
 ## Requirements
 
-- Node.js 22.12 or newer
+- Node.js 26.x
 - pnpm
 - Git
 - Optional: Ollama with `qwen3-embedding:0.6b` for local semantic reranking
 
-## Build
+## Build and run
+
+Clone and build the server:
 
 ```powershell
 git clone https://github.com/sm18lr88/context7-local.git
@@ -73,9 +74,9 @@ node packages/mcp/dist/index.js --transport stdio
 
 ## MCP configuration
 
-Replace the path below if you cloned the repository somewhere else.
+If you cloned the repository elsewhere, replace the paths below.
 
-Codex, in `~/.codex/config.toml`:
+Configure Codex in `~/.codex/config.toml`:
 
 ```toml
 [mcp_servers.context7]
@@ -90,7 +91,7 @@ args = [
 CONTEXT7_LOCAL_STORAGE_DIR = "C:\\Apps\\System\\Context7\\index"
 ```
 
-VS Code, in the user or workspace `mcp.json`:
+Configure VS Code in the user or workspace `mcp.json`:
 
 ```json
 {
@@ -111,7 +112,7 @@ VS Code, in the user or workspace `mcp.json`:
 }
 ```
 
-OpenCode, in `~/.config/opencode/opencode.json`:
+Configure OpenCode in `~/.config/opencode/opencode.json`:
 
 ```json
 {
@@ -124,7 +125,7 @@ OpenCode, in `~/.config/opencode/opencode.json`:
         "--transport",
         "stdio"
       ],
-      "environment": {
+      "env": {
         "CONTEXT7_LOCAL_STORAGE_DIR": "C:\\Apps\\System\\Context7\\index"
       },
       "enabled": true
@@ -133,17 +134,17 @@ OpenCode, in `~/.config/opencode/opencode.json`:
 }
 ```
 
-Restart or reload clients that were already running when their configuration changed.
+After the configuration changes for a running client, restart or reload the client.
 
-## Tools
+## MCP tools
 
-- `resolve-library-id`: finds a Context7-compatible library ID.
-- `query-docs`: returns answer-ready documentation and builds the library first when needed.
-- `search-docs`: returns ranked previews with commit-bound result keys.
-- `read-docs`: reads a selected result with adjacent sections.
-- `grep-docs`: searches locally for an exact API name, option, or error.
-- `local-index-status`: reports freshness, migration, prewarm, and semantic-cache state.
-- `refresh-local-index`: refreshes a library to its current upstream commit.
+- `resolve-library-id` finds a Context7-compatible library ID.
+- When necessary, `query-docs` builds the library before returning answer-ready documentation.
+- `search-docs` returns ranked previews with commit-bound result keys.
+- `read-docs` reads a selected result with adjacent sections.
+- `grep-docs` searches locally for an exact API name, option, or error.
+- `local-index-status` reports freshness, migration, prewarm, and semantic-cache state.
+- `refresh-local-index` refreshes a library to its current upstream commit.
 
 ## Index maintenance
 
@@ -153,7 +154,7 @@ Prebuild the common-library catalog:
 node packages/mcp/dist/prewarm.js --target 1000 --candidates 1600 --concurrency 2
 ```
 
-Upgrade existing indexes after a parser change:
+After a parser change, upgrade existing indexes:
 
 ```powershell
 node packages/mcp/dist/migrate-index.js --concurrency 2
@@ -165,23 +166,23 @@ Run the retrieval regression suite:
 node packages/mcp/dist/evaluate-retrieval.js
 ```
 
-Progress and evaluation history are kept inside the index directory, so interrupted jobs resume and retrieval changes remain comparable over time.
+Progress and evaluation history remain inside the index directory. This lets interrupted jobs resume and keeps retrieval changes comparable over time.
 
 ## Configuration
 
 The most useful environment variables are:
 
-| Variable                       | Default                       | Purpose                                            |
-| ------------------------------ | ----------------------------- | -------------------------------------------------- |
-| `CONTEXT7_LOCAL_STORAGE_DIR`   | Platform-specific local cache | Index location                                     |
-| `CONTEXT7_REFRESH_INTERVAL_MS` | `86400000`                    | Upstream freshness-check interval                  |
-| `CONTEXT7_LOCAL_EMBEDDINGS`    | Enabled                       | Set to `off` for lexical retrieval only            |
-| `CONTEXT7_EMBEDDING_MODEL`     | `qwen3-embedding:0.6b`        | Local Ollama embedding model                       |
-| `CONTEXT7_EMBEDDING_BASE_URL`  | `http://127.0.0.1:11434`      | Local Ollama endpoint                              |
-| `GITHUB_TOKEN` or `GH_TOKEN`   | Unset                         | Optional GitHub search and metadata authentication |
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `CONTEXT7_LOCAL_STORAGE_DIR` | Platform-specific local cache | Index location |
+| `CONTEXT7_REFRESH_INTERVAL_MS` | `86400000` | Upstream freshness-check interval |
+| `CONTEXT7_LOCAL_EMBEDDINGS` | Enabled | Set to `off` for lexical retrieval only |
+| `CONTEXT7_EMBEDDING_MODEL` | `qwen3-embedding:0.6b` | Local Ollama embedding model |
+| `CONTEXT7_EMBEDDING_BASE_URL` | `http://127.0.0.1:11434` | Local Ollama endpoint |
+| `GITHUB_TOKEN` or `GH_TOKEN` | Unset | Optional GitHub search and metadata authentication |
 
-All limits, storage details, design influences, and architecture invariants are documented in [packages/mcp/README.md](packages/mcp/README.md) and [packages/mcp/LOCAL_ARCHITECTURE.md](packages/mcp/LOCAL_ARCHITECTURE.md).
+[MCP package details](packages/mcp/README.md) and the [local architecture](packages/mcp/LOCAL_ARCHITECTURE.md) document all limits, storage details, design influences, and architecture invariants.
 
 ## License
 
-MIT. This project is based on [Upstash Context7](https://github.com/upstash/context7).
+This MIT-licensed project is based on [Upstash Context7](https://github.com/upstash/context7).
