@@ -1,6 +1,6 @@
 # Context7 Local
 
-A complete local-first, Context7-compatible MCP server for current library documentation.
+A local-first, Context7-compatible MCP server for current library documentation.
 
 Unlike the upstream open-source MCP, this fork includes the discovery, ingestion, storage, freshness, and retrieval pipeline needed to serve documentation locally. Missing libraries build automatically during the first request. There is no hosted Context7 API, API key, quota, telemetry, authentication, or remote inference.
 
@@ -9,16 +9,16 @@ Unlike the upstream open-source MCP, this fork includes the discovery, ingestion
 ### Automatic local indexing
 
 - Resolves explicit GitHub IDs and library names through npm, PyPI, crates.io, and GitHub.
-- Builds a missing library before returning the first query; concurrent requests share one build.
+- Builds a missing library before it returns the first query. Concurrent requests share one build.
 - Stores SQLite FTS5 indexes and manifests under a cross-process per-library lock.
 - Records the exact repository commit, parser version, index time, freshness time, and document counts.
-- Prioritizes documentation, API references, and guides while removing duplicates and repository agent rules.
+- Prioritizes documentation, API references, and guides. It removes duplicates and repository agent rules.
 
 ### Better retrieval
 
 - Decomposes each task into keyword, intersection, identifier, and quoted-phrase searches.
 - Combines BM25 results with reciprocal-rank fusion, API/title boosts, coverage, and document diversity.
-- Uses dynamic context budgets instead of returning a fixed block of loosely related text.
+- Sets the context budget dynamically, instead of returning a fixed block of loosely related text.
 - Optionally reranks a bounded candidate set with local Ollama embeddings and caches vectors by commit and model.
 - Fails open to lexical search when Ollama is unavailable.
 - Prefers unseen evidence during repeated searches in the same MCP session.
@@ -28,7 +28,7 @@ Unlike the upstream open-source MCP, this fork includes the discovery, ingestion
 ### Freshness and scale
 
 - Checks upstream commits every 24 hours by default and refreshes changed libraries atomically.
-- Rebuilds parser-obsolete indexes automatically before serving them.
+- Rebuilds parser-obsolete indexes automatically before it serves them.
 - Includes resumable prewarm and migration jobs with durable progress files.
 - Generates a popularity-based catalog for prebuilding 1,000 commonly queried libraries at their latest upstream commits.
 - Exposes freshness, provenance, migration, prewarm, and semantic-cache state through MCP tools.
@@ -45,7 +45,7 @@ Unlike the upstream open-source MCP, this fork includes the discovery, ingestion
 
 ### Measured retrieval
 
-The included regression harness compares the original single-query BM25 path with fused retrieval using commit-pinned scenarios. It records MRR, recall, and latency history so retrieval changes can be measured instead of judged by examples alone.
+The included regression harness compares the original single-query BM25 path with fused retrieval, using commit-pinned scenarios. It records MRR, recall, and latency history, so retrieval changes can be measured and not judged by examples alone.
 
 On Windows, indexes are stored in `C:\Apps\System\Context7\index` by default. On other platforms, the default is `~/.cache/context7-local`.
 
@@ -165,11 +165,11 @@ Run the retrieval regression suite:
 node packages/mcp/dist/evaluate-retrieval.js
 ```
 
-Progress and evaluation history are kept inside the index directory, so interrupted jobs resume and retrieval changes remain comparable over time.
+Progress and evaluation history are kept inside the index directory. Interrupted jobs therefore resume, and retrieval changes stay comparable over time.
 
 ## Configuration
 
-The most useful environment variables are:
+These environment variables are the ones you are most likely to need:
 
 | Variable                       | Default                       | Purpose                                            |
 | ------------------------------ | ----------------------------- | -------------------------------------------------- |
@@ -180,7 +180,7 @@ The most useful environment variables are:
 | `CONTEXT7_EMBEDDING_BASE_URL`  | `http://127.0.0.1:11434`      | Local Ollama endpoint                              |
 | `GITHUB_TOKEN` or `GH_TOKEN`   | Unset                         | Optional GitHub search and metadata authentication |
 
-All limits, storage details, design influences, and architecture invariants are documented in [packages/mcp/README.md](packages/mcp/README.md) and [packages/mcp/LOCAL_ARCHITECTURE.md](packages/mcp/LOCAL_ARCHITECTURE.md).
+[packages/mcp/README.md](packages/mcp/README.md) and [packages/mcp/LOCAL_ARCHITECTURE.md](packages/mcp/LOCAL_ARCHITECTURE.md) document all limits, storage details, design influences, and architecture invariants.
 
 ## License
 
